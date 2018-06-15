@@ -162,3 +162,13 @@ ViewGroup的dispatchTouchEvent方法中，先判断onInterceptTouchEvent是否�
 
 
 
+# LruCache源码分析
+内部维护了一个LinkeHashMap存储缓存,LinkedHashMap的accessOrder设置为true，所以LinkedHashMap的元素依据访问顺序排序。
+LruCache的get方法，获取key对应的缓存value，如果value不存在，调用create方法创建value，并且把value插入到map中。
+LruCache的put方法，插入一堆key和value。
+get和put方法之后都会调用trimMaxSize，将排在最后且超过容器最大size的元素移除。
+
+# DiskLruCache
+可以看到DiskLruCache，利用一个journal文件，保证了保证了cache实体的可用性（只有CLEAN的可用），且获取文件的长度的时候可以通过在该文件的记录中读取。利用FaultHidingOutputStream对FileOutPutStream很好的对写入文件过程中是否发生错误进行捕获，而不是让用户手动去调用出错后的处理方法。其内部的很多细节都很值得推敲。
+
+

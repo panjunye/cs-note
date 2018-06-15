@@ -16,3 +16,11 @@ Type的类型：
 - GenericArrayType
 - ParameterizedType
 - Class
+
+
+# HashMap
+
+- LinkedHashMap
+    > 通过Iterator可以按照顺序遍历
+
+

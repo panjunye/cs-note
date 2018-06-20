@@ -1,3 +1,21 @@
+# Activity的生命周期和启动模式
+## Activity的生命周期
+
+![avatar](./images/activity_lifecycle.png)
+
+### 正常状态下生命周期分析
+> 正常情况下，旧Activity的onPause先调用，然后新Activity才启动
+
+### 异常情况下生命周期分析
+1. 当系统配置发生改变
+
+    当系统配置发生改变，Activity会被销毁，其onPause，onStop，onDestroy均会被调用，同事由于Activity是在异常情况下终止的，系统会调用onSaveInstanceState来保存当前Activity的状态。当Activity被重新创建后，系统会调用onRestoreInstanceState。
+
+2. 内存资源不足导致低优先级的Activity被杀死
+    数据存储和回复过程跟1)是一样的
+
+
+
 # Activity的4种launch mode
 ## standard 
 > 每次都会新创建一个Activity的实例，放到栈顶
@@ -16,6 +34,11 @@
 
 应用： Home Screen
 
+## 结束所有Activity
+对API 16+
+> finishAffinity();
+对低于API 16
+> ActivityCompat.finishAffinity(YourActivity.this);
 
 # Handler
 > This Handler class should be static or leaks might occur: IncomingHandler
@@ -157,9 +180,16 @@ ViewGroup的dispatchTouchEvent方法中，先判断onInterceptTouchEvent是否�
 - ART 
     > ART，即Android Runtime，使用AOT（Ahead of time)，在应用安装的时候将字节码编译为dex，机器码。
 
-# Bitmap加载和
+# Bitmap高效加载
 
+BitmapFactory类提供了4类方法加载图片
 
+- decodeFile        从文件系统加载Bitmap对象
+- decodeResource    从资源加载Bitmap对象
+- decodeStream      从输入流加载Bitmap对象
+- decodeByteArray   从字节数组加载Bitmap对象
+
+通过BitmapFactory.Option的inSampleSize缩放图片，避免OOM
 
 
 # LruCache源码分析
@@ -171,4 +201,73 @@ get和put方法之后都会调用trimMaxSize，将排在最后且超过容器最
 # DiskLruCache
 可以看到DiskLruCache，利用一个journal文件，保证了保证了cache实体的可用性（只有CLEAN的可用），且获取文件的长度的时候可以通过在该文件的记录中读取。利用FaultHidingOutputStream对FileOutPutStream很好的对写入文件过程中是否发生错误进行捕获，而不是让用户手动去调用出错后的处理方法。其内部的很多细节都很值得推敲。
 
+
+# IPC机制
+
+## IPC简介 
+IPC是 Inter-Process Communication的缩写，含义为进程间通信或跨进程通信，是指两个进程之间进行数据交换的过程。
+
+## Android中的多进程模式
+
+### 开启多进程模式
+- 在AndroidManifest中指定android:process
+- 通过JNI的native层fork一个新的进程
+
+### 多进程的运行机制
+Android为每一个应用/每一个进程分配一个独立的虚拟机。
+
+多进程会有以下几个问题：
+- 静态成员和单例模式失效
+- 线程同步机制完全失效
+- SharedPreferences的可靠性下降
+- Application会多次创建
+
+
+## IPC基础概念
+
+### 序列化方式
+- 实现Serializable接口
+- 实现Parcelable接口
+
+## Android的IPC方式
+
+跨进程通信方式：
+- Intent附加extras来传递信息
+- 在SD卡共享文件方式来共享数据
+- 采用Binder方式跨进程通信
+- 使用Messenger方式
+- ContentProvider天生支持跨进程访问
+- 采用Socket
+- 广播
+- 使用AIDL
+
+
+# 四大组件的工作过程
+## 四大组件
+- Activity
+- BroadcastReceiver
+- Service
+- ContentProvider
+
+## Activity的工作过程
+
+启动Activity
+``` Java
+Intent intent = new Intent(this,TargetActivity.class);
+startActivity(intent);
+```
+
+# 面试题集合
+
+## 谈谈对Context的理解
+Context是包含应用环境的全局信息的接口，它的实现类由操作系统提供。通过Cotnext，可以获取应用的资源、类等。通过Context可以启动Activity、发送广播、接收Intents等。
+
+Activity、Service、Application都是Context的间接子类。
+
+当Application和Service作为Context的时候，是不能够显示对话框,启动Activity的时候会在新的Task中启动。
+![context](./images/context_usage.png)
+
+- 数字1：启动Activity在这些类中是可以的，但是需要创建一个新的task。一般情况不推荐。
+- 数字2：在这些类中去layout inflate是合法的，但是会使用系统默认的主题样式，如果你自定义了某些样式可能不会被使用。
+- 数字3：在receiver为null时允许，在4.2或以上的版本中，用于获取黏性广播的当前值。（可以无视）
 

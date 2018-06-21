@@ -41,12 +41,22 @@
 > ActivityCompat.finishAffinity(YourActivity.this);
 
 # Handler
+
+
 > This Handler class should be static or leaks might occur: IncomingHandler
 
 Handle的实现类应该为静态，因为同一个Thread的所有handler都共用一个Looper,而每一个Message都持有Handler的引用，handler又持有Activity的引用，因此如果Message还在多列中，那么Activity就不能为GC回收。
 可看[Stackoverflow的解释](https://stackoverflow.com/questions/11407943/this-handler-class-should-be-static-or-leaks-might-occur-incominghandler)。
 
-Handler机制：首先对于每一个线程都有一个Looper，Looper.prepare()方法向其内部的ThreadLocalc存放一个新的Looper，每个线程只能执行一次。每个Looper内部有一个MessageQueue，handler发消息时，发到Looper内部的MessageQueue。Looper.loop()方法会循环从队列中获取Message，取到Message后，在调用handler的handleMessage方法。
+Handler机制：
+1.Handler和Looper相当于一个环，通过Message来传递消息。
+2.每一个线程都有一个唯一的Looper，Looper有一个消息队列MessageQueue。
+3.handler把消息push到消息队列，Looper通过阻塞方法从消息队列循环取出消息.
+Looper取出消息的handler，调用handler的handleMessage方法。
+
+通过ThreadLocal保证每个线程只有一个Looper。ThreadLocal给每个线程创建一个ThreadLocalMap，
+与线程关联的Looper便存储在ThreadLocalMap中。
+
 
 相关参考
 > [Android中为什么主线程不会因为Looper.loop()里的死循环卡死](https://www.zhihu.com/question/34652589)
@@ -56,18 +66,79 @@ Handler机制：首先对于每一个线程都有一个Looper，Looper.prepare()
 2. AsyncTask
     > 内部封装了Handler和线程池
 3. HandlerThread
-    > 继承了Thread，内部封装了Handler，在run方法中开启Looper.使用时自定义一个Handler，将HandlerThread的Looper作为参数。
+    ```Java
+    public void run() {
+        mTid = Process.myTid();
+        Looper.prepare();
+        synchronized (this) {
+            mLooper = Looper.myLooper();
+            notifyAll();
+        }
+        Process.setThreadPriority(mPriority);
+        onLooperPrepared();
+        Looper.loop();
+        mTid = -1;
+    }
+    ```
+    HandlerThread继承于Thread，启动HandlerThread时，在它的run方法中，依次调用Looper的prepare
+    和loop方法，开启消息循环。因此通过HandleThread的Looper创建Handler，handler就可以在其他线程
+    处理消息了。
+
 4. IntentService
-    > 内部封装了HandlerThread
-5. ThreadPoolExecutor
+    > 内部封装了HandlerThread,使Service在新线程中处理Intent
+5. 线程池
+ThreadPoolExecutor
     - FixedThreadPool
         > 线程数量固定
     - CachedThreadPool
         > 线程数量可以动态增加
     - ScheduledThreadPool
+        > 定时任务
     - SingleThreadExecutor
+        > 线程池只有1个线程
 
+## 线程池描述
+线程池的目的是复用线程，降低频繁创建和销毁线程的开销。
+在Java中可以，通过Executors可以创建不同类型的线程池。线程池主要有ThreadPoolExecutor实现。
 
+ThreadPoolExecutor的构造器有几个重要参数
+> 1. corePoolSize       核心线程数 
+> 2. maximumPoolSize    最大线程数
+> 3. keepAliveTime      线程没有任务执行时保活的时间，当线程数超过核心线程数时才会起效。
+
+### 线程池的执行逻辑
+> 1. 如果当前线程数小于核心线程数，新建一个线程，并把当前任务分配给该线程，成功则返回。
+> 2. 如果1)失败了，则尝试把当前任务放入待执行队列中，成功则返回
+> 3. 如果2)失败了，说明线程池已经停止或已经饱和，调用拒绝策略处理该任务。
+
+### 线程池新加线程
+线程池新建一个Worker线程，把当前任务分配给该Worker线程，把线程放入到HashSet容器中，并且启动该线程。
+
+### 线程执行过程
+```Java
+// runWorker(Worker w)
+while (task != null || (task = getTask()) != null) {
+    ...
+    beforeExecute(wt, task);
+    task.run();
+    afterExecute(task, thrown);
+    ...
+}
+```
+线程执行会在while循环重复，循环结束的条件是待执行任务为空。
+线程执行完后，从待办任务队列中取出任务，该操作是阻塞操作。
+如果当前线程数没有超过核心线程数，那么线程会一直阻塞下去，否则，
+该操作会设置一个超时时间，超过时间没有任务的话，线程就会结束。
+
+### 线程池拒绝策略
+1. AbortPolicy 中止策略
+    > 饱和时抛出异常，调用者自行捕捉异常
+2. DiscardPolicy 抛弃策略
+    > 不做任何处理抛弃任务
+3. DiscardOldestPolicy 抛弃旧任务策略
+    > 将队列的头元素出队抛弃
+4. CallerRunsPolicy 调用者运行
+    > 在调用者的线程中运行任务
 
 # [ANR](https://developer.android.com/topic/performance/vitals/anr)
 
@@ -271,3 +342,48 @@ Activity、Service、Application都是Context的间接子类。
 - 数字2：在这些类中去layout inflate是合法的，但是会使用系统默认的主题样式，如果你自定义了某些样式可能不会被使用。
 - 数字3：在receiver为null时允许，在4.2或以上的版本中，用于获取黏性广播的当前值。（可以无视）
 
+# JNI
+JNI分为静态注册和动态注册两种方式
+
+- 静态注册
+    1. 编写java的native方法
+    2. 用javah生成native方法对应的头文件
+    3. 用C/C++实现头文件
+    缺点：需要更改类名、包名或方法时，需要重新生成头文件
+
+- 动态注册
+    1. 编写Java的native方法
+    2. 编写C/C++代码，实现JNI_OnLoad()方法
+    3. 将Java方法和C/C++方法通过签名信息对应起来
+
+# Overdraw
+OverDraw是过度绘制，指在一帧的时间内（16ms)，像素被绘制多次。
+最优的情况下是在1帧的时间内，每一个像素只绘制一次。
+如果绘制的时间超过16ms，就会出现掉帧，造成卡顿。
+
+避免Overdraw的方法
+1. 合理选择控件容器
+2. 去掉window的默认背景
+    在onCreate()方法的setContentView()之后调用
+    > getWindow().setBackgroundDrawable(null);
+    或者在Theme中添加
+    > android:windowBackground="null"
+
+3. 去掉不必要的背景
+4. ClipRect Canvas.quickReject()
+5. ViewStub view的占位符
+    > ViewStub不可见，不占布局位置。当设置ViewStub为可见时，
+    > ViewStub对应的布局才会被inflate。
+6. Merge标签
+    > 减少view层级
+7. draw9patch
+
+
+# AMS和PMS
+## AMS (ActivityManagerService)
+1. 调度各应用程序
+2. 内存管理
+2. 进程管理
+
+## PMS (PackageManagerService)
+主要负责APK的安装、卸载、优化和查询。

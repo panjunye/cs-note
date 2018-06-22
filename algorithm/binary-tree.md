@@ -130,7 +130,7 @@ void PostOrderTraverse(BiTree T){
 
 按照先序遍历读取ABC^^DE^G^^F^^^
 ```C++
-void CreateBiTree(BiTree &T){
+void createBinaryTree(BiTree &T){
     ElemType data;
     cin >> data;
     if(data == NULL){
@@ -443,11 +443,122 @@ Status Delete(BiTree &p){
 ## 二叉平衡查找树 (AVL树)
 
 ```C++
-typedef struct AvlNode
-{
-    ElemType element;
-    struct AvlNode *left;
-    struct AvlNode *right;
-    int     height;    
-} AvlNode, *AvlTree;
+#define IMBALANCE 1
+
+typedef int Element;
+typedef struct AvlNode *AvlTree;
+
+struct AvlNode {
+    Element data;
+    AvlTree left;
+    AvlTree right;
+    int height;
+    bool visited;
+
+    AvlNode(const Element &e, AvlTree lt, AvlTree rt, int h = 0, bool v = false)
+            : data{e}, left{lt}, right{rt}, height{h}, visited{v} {}
+
+    AvlNode() = default;
+};
+
+// 返回树的高度
+int height(AvlTree t) {
+    return t == nullptr ? -1 : t->height;
+}
+
+int max(int a, int b) {
+    return a > b ? a : b;
+}
+
+// 右子树过重，单次旋转
+void singleRotateWithRightChild(AvlTree &t) {
+    AvlTree k = t->right;
+    t->right = k->left;
+    k->left = t;
+    t->height = max(height(t->left), height(t->right)) + 1;
+    k->height = max(height(k->left), height(k->right)) + 1;
+    t = k;
+}
+
+// 左孩子过重，单次旋转
+void singleRotateWithLeftChild(AvlTree &t) {
+    AvlTree k = t->left;
+    t->left = k->right;
+    k->right = t;
+    t->height = max(height(t->left), height(t->right)) + 1;
+    k->height = max(height(k->left), height(k->right)) + 1;
+    t = k;
+}
+
+void doubleRotateWithLeftChild(AvlTree &t) {
+    singleRotateWithRightChild(t->left);
+    singleRotateWithLeftChild(t);
+}
+
+void doubleRotateWithRightChild(AvlTree &t) {
+    singleRotateWithLeftChild(t->right);
+    singleRotateWithRightChild(t);
+}
+
+// 对排序树平衡化
+void balance(AvlTree &t) {
+    if (t == nullptr)
+        return;
+
+    if (height(t->left) - height(t->right) > IMBALANCE)
+        if (height(t->left->left) >= height(t->left->right))
+            singleRotateWithLeftChild(t);
+        else
+            doubleRotateWithLeftChild(t);
+    else if (height(t->right) - height(t->left) > IMBALANCE)
+        if (height(t->right->right) >= height(t->right->left))
+            singleRotateWithRightChild(t);
+        else
+            doubleRotateWithRightChild(t);
+
+    t->height = max(height(t->left), height(t->right)) + 1;
+
+}
+
+// 向平衡树中插入元素
+void insert(AvlTree &t, Element e) {
+    if (t == nullptr)
+        t = new AvlNode(e, nullptr, nullptr);
+    else if (e < t->data)
+        insert(t->left, e);
+    else if (e > t->data)
+        insert(t->right, e);
+
+    balance(t);
+}
+
+// 找出平衡树中的最小值 
+AvlTree findMin(AvlTree t){
+    if(t == nullptr)
+        return nullptr;
+    while (t->left != nullptr){
+        t = t->left;
+    }
+    return t;
+}
+
+// 移除节点
+void remove(AvlTree &t, Element x) {
+    if (t == nullptr) {
+        return;
+    }
+    if (x < t->data)
+        remove(t->left, x);
+    else if (x > t->data)
+        remove(t->right, x);
+    else if (t->left != nullptr && t->right != nullptr) { // Two children.
+        t->data = findMin(t->right)->data;
+        remove(t->right, t->data);
+    }else{
+        AvlTree old = t;
+        t = (t->left != nullptr) ? t->left : t->right;
+        delete old;
+    }
+    balance(t);
+}
 ```

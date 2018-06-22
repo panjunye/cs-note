@@ -50,3 +50,7 @@ ServiceMethod<?, ?> loadServiceMethod(Method method) {
 ```
 
 
+# Dagger2
+Dagger2是一个依赖注入的框架。
+1.Dagger2通过apt在编译时生成代码，避免使用反射影响效率。
+2.对于每个可以注入的对象，Dagger2生成该对象的工厂类；同时一个对象也依赖其他对象，因此它的工厂类也持有其他对象的工厂类，如此一层一层嵌套，构成整个依赖结构。

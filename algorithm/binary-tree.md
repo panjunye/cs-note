@@ -440,4 +440,14 @@ Status Delete(BiTree &p){
 } // Delete
 ```
 
+## 二叉平衡查找树 (AVL树)
 
+```C++
+typedef struct AvlNode
+{
+    ElemType element;
+    struct AvlNode *left;
+    struct AvlNode *right;
+    int     height;    
+} AvlNode, *AvlTree;
+```
